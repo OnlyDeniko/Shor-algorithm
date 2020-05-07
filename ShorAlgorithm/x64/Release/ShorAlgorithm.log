@@ -1,0 +1,19 @@
+﻿  algoNumbers.cpp
+d:\c++\nnsu\itlab\test\shoralgorithm\shoralgorithm\algonumbers.cpp(10): warning C4244: +=: преобразование "__int64" в "int", возможна потеря данных
+d:\c++\nnsu\itlab\test\shoralgorithm\shoralgorithm\algonumbers.cpp(61): warning C4244: аргумент: преобразование "_Rep" в "unsigned int", возможна потеря данных
+          with
+          [
+              _Rep=__int64
+          ]
+  main.cpp
+  Quantum.cpp
+d:\c++\nnsu\itlab\test\shoralgorithm\shoralgorithm\quantum.cpp(41): warning C4334: <<: результат 32-разрядного смещения неявно преобразуется в 64-разрядное значение (предполагалось 64-разрядное смещение?)
+d:\c++\nnsu\itlab\test\shoralgorithm\shoralgorithm\quantum.cpp(43): warning C4334: <<: результат 32-разрядного смещения неявно преобразуется в 64-разрядное значение (предполагалось 64-разрядное смещение?)
+d:\c++\nnsu\itlab\test\shoralgorithm\shoralgorithm\quantum.cpp(587): warning C4334: <<: результат 32-разрядного смещения неявно преобразуется в 64-разрядное значение (предполагалось 64-разрядное смещение?)
+  solve.cpp
+d:\c++\nnsu\itlab\test\shoralgorithm\shoralgorithm\solve.cpp(17): warning C4244: инициализация: преобразование "double" в "int", возможна потеря данных
+d:\c++\nnsu\itlab\test\shoralgorithm\shoralgorithm\solve.cpp(19): warning C4244: инициализация: преобразование "double" в "int", возможна потеря данных
+  Создание кода
+  All 399 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Создание кода завершено
+  ShorAlgorithm.vcxproj -> D:\c++\NNSU\ITLab\test\ShorAlgorithm\x64\Release\ShorAlgorithm.exe
