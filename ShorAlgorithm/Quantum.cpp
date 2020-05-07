@@ -35,7 +35,7 @@ Quantum::Quantum(int _a, int _N) {
 	a = _a;
 	N = _N;
 	int cnt_qub = (int)ceil(log2(N)) + 1;
-	int sz = 1 << (2 * cnt_qub);
+	int sz = 1 << (2 * cnt_qub - 2);
 	firstRegister.assign(sz, { 0, 0 });
 	firstRegister[0] = { 1, 0 };
 	secondRegister.assign(1 << (cnt_qub + 2), { 0, 0 });
@@ -620,69 +620,58 @@ void Quantum::UnitCMULT_modN(cd & _1, vector<cd>& x, vector<cd>& b, cd & _4, int
 
 int Quantum::Shor() {
 	int cnt_qub = (int)ceil(log2(N)) + 1;
-	int sz = 1 << (2 * cnt_qub);
-	firstRegister = QFFT(firstRegister, (int)log2(firstRegister.size()));
+	int sz = 1 << (2 * cnt_qub - 2);
+	vector<cd> kek(1 << (3 * cnt_qub - 3), 0);
 
-	int step2 = 1;
-	for (int i = (int)log2(firstRegister.size()) - 1; i >= 0; i--) {
-		bool ok = 0;
-		for (int j = 0; j < firstRegister.size(); j++) {
-			string tmp = perevod(j, 2);
+	firstRegister = QFFT(firstRegister, log2(firstRegister.size()));
 
-			while (tmp.size() < log2(firstRegister.size())) tmp = '0' + tmp;
 
-			if (tmp[i] == '1' && norm(firstRegister[j]) > 0) {
-				ok = 1;
-				break;
-			}
-		}
-		cd qwe = { 1, 0 };
-		int gg = bin_pow(a, step2, N);
-		UnitCMULT_modN(qwe, secondRegister, thirdRegister, fourthRegister, gg, N, cnt_qub + 2);
+	for (int j = 0; j < firstRegister.size(); j++) {
+		string tmp = perevod(j, 2);
+		secondRegister.assign(1 << (cnt_qub + 2), { 0, 0 });
+		secondRegister[reverseNumber(1, cnt_qub + 1) << 1] = { 1, 0 };
 		thirdRegister.assign(1 << (cnt_qub + 2), { 0, 0 });
 		thirdRegister[0] = { 1, 0 };
-
-		for (int j = 0; j < secondRegister.size(); j++) {
-			double q = secondRegister[j].real(), w = secondRegister[j].imag();
-			if (fabs(secondRegister[j].real()) < eps) q = 0;
-			if (fabs(secondRegister[j].imag()) < eps) w = 0;
-
-			secondRegister[j] = { q, w };
+		while (tmp.size() < log2(firstRegister.size())) tmp = '0' + tmp;
+		int gg = 1;
+		long long step2 = 1;
+		for (int k = 0; k < log2(firstRegister.size()); k++) {
+			gg = bin_pow(a, step2, N);
+			step2 *= 2;
+			if (tmp[k] == '1') {
+				cd qwe = { 1, 0 };
+				UnitCMULT_modN(qwe, secondRegister, thirdRegister, fourthRegister, gg, N, cnt_qub + 2);
+				thirdRegister.assign(1 << (cnt_qub + 2), { 0, 0 });
+				thirdRegister[0] = { 1, 0 };
+				#pragma omp parallel for
+				for (int i = 0; i < secondRegister.size(); i++) {
+					double q = secondRegister[i].real(), w = secondRegister[i].imag();
+					if (fabs(secondRegister[i].real()) < eps) q = 0;
+					if (fabs(secondRegister[i].imag()) < eps) w = 0;
+					secondRegister[i] = { q, w };
+				}
+			}
 		}
 
-		(step2 *= 2) %= N;
-	}
-
-	firstRegister = ReverseQFFT(firstRegister, (int)log2(firstRegister.size()));
-	if (N == 75 && a == 2) return 20;
-	if (N == 77 && a == 2) return 30;
-	if (N == 21 && a == 2) return 6;
-	if (N == 33 && a == 5) return 10;
-	if (N == 195 && a == 2) return 12;
-	if (N == 45 && a == 2) return 12;
-	if (N == 57 && a == 5) return 18;
-	int ans = -1;
-	for (int i = 0; i < secondRegister.size(); i++) {
-
-		if (fabs(norm(secondRegister[i]) - 1) < eps) {
-			ans = i;
-			//cout << bitset<20>(i) << '\n';
+		int ans = -1;
+		for (int k = 0; k < secondRegister.size(); k++) if (fabs(norm(secondRegister[k]) - 1) < eps) {
+			ans = k;
 			break;
 		}
+		//ans = reverseNumber(ans, cnt_qub + 2);
+		ans >>= 3;
+		kek[ans * (1 << (2 * cnt_qub - 2)) + j] = firstRegister[j];
+	}
+	for (int i = 0; i < cnt_qub - 1; i++) kek = measure_cubit(kek, log2(kek.size()));
+
+	kek = QFFT(kek, log2(kek.size()));
+	int ans = 0;
+
+	for (int i = 0; i < kek.size(); i++) {
+		if (norm(kek[i]) > eps) ans = __gcd(ans, i);
 	}
 
-	try {
-
-		if (ans == -1) throw BadAnswerShor();
-	}
-	catch (Quantum::BadAnswerShor) {
-		cout << "Bad answer: Shor\n";
-		return -1;
-	}
-	//deb(ans);
-	ans = reverseNumber(ans, cnt_qub + 2);
-	//deb(ans);
-	return ans;
+	return kek.size() / ans;
 }
 
 vector<cd> Quantum::DenseCoding(const vector<cd>& a, int cnt_qubits) {
@@ -826,6 +815,40 @@ vector<cd> Quantum::calc_one_cubit(const vector<cd>& a, int index) {
 			else {
 				ans[i] /= sqrt(p0);
 			}
+		}
+	}
+	return ans;
+}
+
+vector<cd> Quantum::measure_cubit(const vector<cd>& a, int index) {
+	int gg = (int)a.size();
+	int step = 0;
+	while (gg != 1) {
+		step++;
+		gg >>= 1;
+	}
+	index--;
+	double p0(0), p1(0);
+	for (int i = 0; i < (int)a.size(); i++) {
+		bitset<128> bit(i);
+		if (bit[index]) p1 += norm(a[i]);
+		else p0 += norm(a[i]);
+	}
+	//cout << p1 << ' ' << p0 << '\n';
+	int g = generate_random_number(2, INT_MAX);
+	g = abs(g);
+	double p = (double)g / INT_MAX;
+	vector<cd> ans(a.size() / 2);
+	if (p > p0) {
+		for (int i = 0; i < (int)ans.size(); i++) {
+			ans[i] = a[i + ans.size()];
+			ans[i] /= sqrt(p1);
+		}
+	}
+	else {
+		for (int i = 0; i < (int)ans.size(); i++) {
+			ans[i] = a[i];
+			ans[i] /= sqrt(p0);
 		}
 	}
 	return ans;

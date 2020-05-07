@@ -4,7 +4,7 @@
 #include"Quantum.h"
 
 void solve(int n) {
-	deb(n);
+	//deb(n);
 	if (!(n & 1ll)) {
 		cout << 2 << '\n';
 		return;
@@ -58,8 +58,8 @@ void solve(int n) {
 		Quantum magic(x, n);
 		int R = magic.Shor();
 		/*int R = 1;
-		while (bin_pow(x, R, n) != 1) R++;
-		cout << x << ' ' << R << endl;*/
+		while (bin_pow(x, R, n) != 1) R++;*/
+		//cout << x << ' ' << R << endl;
 
 		if (!(R & 1ll)) {
 			if (n == 85 && i == 2) R = 8;

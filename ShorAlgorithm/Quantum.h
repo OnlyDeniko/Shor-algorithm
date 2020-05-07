@@ -74,5 +74,6 @@ public:
 	void test_for_whole_calc(const int &tests, const vector<complex<double> > & a);
 
 	vector<cd> calc_one_cubit(const vector<cd> & a, int index);
+	vector<cd> measure_cubit(const vector<cd> & a, int index);
 	void test_for_one_calc(const int &tests, const vector<cd> & a, int index);
 };
