@@ -54,6 +54,8 @@ public:
 	vector<cd> FADD(vector<cd> b, int a);
 	vector<cd> ReverseFADD(vector<cd> b, int a);
 
+	vector<cd> Fredkin(const vector<cd> &a, int x, int y, int z);
+
 	void FADD_modN(cd &_1, cd &_2, vector<cd> &b, cd &_4, int a, int N, int cnt_qub);
 	void ReverseFADD_modN(cd &_1, cd &_2, vector<cd> &b, cd &_4, int a, int N, int cnt_qub);
 

@@ -389,6 +389,61 @@ vector<cd> Quantum::ReverseFADD(vector<cd> b, int a) {
 	return b;
 }
 
+vector<cd> Quantum::Fredkin(const vector<cd>& a, int x, int y, int z) {
+	int gg = (int)a.size();
+	int step = 0;
+	while (gg != 1) {
+		step++;
+		gg >>= 1;
+	}
+	/*x = step - x;
+	y = step - y;*/
+	x--;
+	y--;
+	z--;
+	int finish = 1 << (step - 3);
+	vector<cd> res(a);
+	#pragma omp parallel
+	{
+		#pragma omp for schedule(static)
+		for (int mask = 0; mask < finish; mask++) {
+			int ind1 = 0;
+			for (int i = 0; i < x; i++) {
+				ind1 |= mask & (1 << i);
+			}
+			for (int i = x + 1; i < y; i++) {
+				bool gg = mask & (1 << (i - 1));
+				ind1 |= (gg << i);
+			}
+			for (int i = y + 1; i < z; i++) {
+				bool gg = mask & (1 << (i - 2));
+				ind1 |= (gg << i);
+			}
+			for (int i = z + 1; i < step; i++) {
+				bool gg = mask & (1 << (i - 3));
+				ind1 |= (gg << i);
+			}
+			int ind2(ind1), ind3(ind1), ind4(ind1), ind5(ind1), ind6(ind1), ind7(ind1), ind8(ind1), ind9(ind1);
+			ind2 |= (1 << z);
+			ind3 |= (1 << y);
+			ind4 |= (1 << z); ind4 |= (1 << y);
+			ind5 |= (1 << x);
+			ind6 |= (1 << x);                 ind6 |= (1 << z);
+			ind7 |= (1 << x); ind7 |= (1 << y);
+			ind8 |= (1 << x); ind8 |= (1 << y); ind8 |= (1 << z);
+			res[ind1] = a[ind1];
+			res[ind2] = a[ind2];
+			res[ind3] = a[ind3];
+			res[ind4] = a[ind4];
+			res[ind5] = a[ind5];
+			res[ind6] = a[ind7];
+			res[ind7] = a[ind6];
+			res[ind8] = a[ind8];
+		}
+	}
+	return res;
+}
+
 void Quantum::FADD_modN(cd & _1, cd & _2, vector<cd>& b, cd & _4, int a, int N, int cnt_qub) {
 	if (norm(_1) > 0 && norm(_2) > 0) {
 		b = FADD(b, a);
