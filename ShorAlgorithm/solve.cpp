@@ -3,8 +3,8 @@
 #include"algoNumbers.h"
 #include"Quantum.h"
 
-void solve(int n) {
-	//deb(n);
+void solve(int n, double noize) {
+	cout << "Noize = " << fixed << setprecision(12) << noize << '\n';
 	if (!(n & 1ll)) {
 		cout << 2 << '\n';
 		return;
@@ -22,13 +22,11 @@ void solve(int n) {
 			int mid = (l + r) >> 1ll;
 
 			long long res = bin_pow(mid, i, LLONG_MAX);
-			//cout << "! " << mid << ' ' << i << ' ' << res << '\n';
 			if (res == -1 || res > n) {
 				r = mid - 1;
 			}
 			else l = mid;
 		}
-		//cout << i << ' ' << l << ' ' << r << '\n';
 		if (bin_pow(l, i, LLONG_MAX) == n) {
 			cout << "DEGREE ";
 			cout << l << '^' << i << '\n';
@@ -40,41 +38,27 @@ void solve(int n) {
 			return;
 		}
 	}
-
-	set<int> rand;
-	//for (int i = 0; i < 2000; i++) {
+	int step = 0;
 	for (int i = 2; i < n; i++) {
-		if (rand.size() == n - 2) break;
-		/*int x = generate_random_number(2, n - 1);
-		while (true) {
-			if (rand.find(x) == rand.end()) break;
-			x = generate_randon_number(2, n - 1);
-		}*/
 		int x = i;
-		rand.insert(x);
-		if (__gcd(x, n) != 1) continue;
-		//cout << "~ " << x << '\n';
-
-		Quantum magic(x, n);
+		if (gcd(x, n) != 1) continue;
+		step++;
+		Quantum magic(x, n, noize);
 		int R = magic.Shor();
-		/*int R = 1;
-		while (bin_pow(x, R, n) != 1) R++;*/
-		//cout << x << ' ' << R << endl;
-
+		cout << x << ' ' << R / 2 << ' ' << n << '\n';
 		if (!(R & 1ll)) {
-			if (n == 85 && i == 2) R = 8;
 			int bp = bin_pow(x, R / 2, n);
-			int first = __gcd(bp + 1, n);
-			int second = __gcd(bp - 1, n);
+			int first = gcd(bp + 1, n);
+			int second = gcd(bp - 1, n);
 			if (n % first == 0 && first != n && first != 1) {
+				cout << "Found at step " << step << ", x = " << x << '\n';
 				cout << first << '\n';
-				return;
 			}
-			if (n % second == 0 && second != n && second != 1) {
+			else if (n % second == 0 && second != n && second != 1) {
+				cout << "Found at step " << step << ", x = " << x << '\n';
 				cout << second << '\n';
-				return;
 			}
 		}
 	}
-	//assert(0);
+	cout << "Not found\n";
 }

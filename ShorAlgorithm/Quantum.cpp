@@ -2,21 +2,16 @@
 #include<map>
 
 int Quantum::reverseNumber(int x, int len) {
-	string s;
-	while (x) {
-		s += char((x % 2) + '0');
-		x /= 2;
+	int pos = 0;
+	for (int i = 31; i >= 0; i--) if (x & (1 << i)) {
+		pos = i;
+		break;
 	}
-	reverse(s.begin(), s.end());
-	while (s.size() < len) s = '0' + s;
 	int ans = 0;
-	int step2 = 1;
-	for (auto i : s) {
-		if (i == '1') {
-			ans += step2;
-		}
-		step2 <<= 1;
+	for (int i = pos; i >= 0; i--) {
+		if (x & (1 << i)) ans |= (1 << (pos - i));
 	}
+	while (pos + 1 < len) ans <<= 1, pos++;
 	return ans;
 }
 
@@ -31,9 +26,7 @@ string Quantum::perevod(int x, int k) {
 	return ans;
 }
 
-Quantum::Quantum(int _a, int _N) {
-	a = _a;
-	N = _N;
+Quantum::Quantum(int _a, int _N, double _noize): a(_a), N(_N), noize(_noize) {
 	int cnt_qub = (int)ceil(log2(N)) + 1;
 	int sz = 1 << (2 * cnt_qub - 2);
 	firstRegister.assign(sz, { 0, 0 });
@@ -69,382 +62,229 @@ vector<cd> Quantum::ReverseQFFT(const vector<cd>& input, int cnt_qubits) {
 }
 
 vector<cd> Quantum::Hadamar(const vector<cd>& a, int ind) {
-	int gg = (int)a.size();
-	int step = 0;
-	while (gg != 1) {
-		step++;
-		gg >>= 1;
-	}
-
-	//int index = step - ind;
+	int n = (int)a.size();
+	int step = log2(n);
 	int index = ind - 1;
 	int finish = 1 << (step - 1);
 	vector<cd> matrix(a);
-
-#pragma omp parallel
-	{
-#pragma omp for schedule(static)
-		for (int mask = 0; mask < finish; mask++) {
-			int ind1 = 0, ind2 = 0;
-			for (int i = 0; i < index; i++) {
-				ind1 |= mask & (1 << i);
-			}
-			for (int i = index + 1; i < step; i++) {
-				bool gg = mask & (1 << (i - 1));
-				ind1 |= (gg << i);
-			}
-			ind2 = ind1;
-			ind2 |= (1 << index);
-			cd q = a[ind1];
-			cd w = a[ind2];
-			matrix[ind1] = 1 / sqrt(2.) * (q + w);
-			matrix[ind2] = 1 / sqrt(2.) * (q - w);
-		}
+	int mask = 0;
+#pragma omp parallel for private(mask)
+	for (mask = 0; mask < finish; mask++) {
+		int ind1 = (mask & ((1 << index) - 1)) |
+			((mask & (((1 << (step - 1)) - 1) ^ ((1 << index) - 1))) << 1);
+		int ind2 = ind1 | (1 << index);
+		cd q = a[ind1];
+		cd w = a[ind2];
+		matrix[ind1] = 1.0 / sqrt(2.) * (q + w);
+		matrix[ind2] = 1.0 / sqrt(2.) * (q - w);
 	}
 	return matrix;
 }
 
 vector<cd> Quantum::Controlled_Z(const vector<cd>& a, int x, int y) {
-	int gg = (int)a.size();
-	int step = 0;
-	while (gg != 1) {
-		step++;
-		gg >>= 1;
-	}
-	/*x = step - x;
-	y = step - y;*/
+	int n = (int)a.size();
+	int step = log2(n);
 	x--;
 	y--;
 	int finish = 1 << (step - 2);
 	vector<cd> res(a);
-#pragma omp parallel
-	{
-#pragma omp for schedule(static)
-		for (int mask = 0; mask < finish; mask++) {
-			int ind1 = 0;
-			for (int i = 0; i < x; i++) {
-				ind1 |= mask & (1 << i);
-			}
-			for (int i = x + 1; i < y; i++) {
-				bool gg = mask & (1 << (i - 1));
-				ind1 |= (gg << i);
-			}
-			for (int i = y + 1; i < step; i++) {
-				bool gg = mask & (1 << (i - 2));
-				ind1 |= (gg << i);
-			}
-			int ind2 = ind1;
-			ind2 |= (1 << y);
-			int ind3 = ind1;
-			ind3 |= (1 << x);
-			int ind4 = ind3;
-			ind4 |= (1 << y);
-			res[ind1] = a[ind1];
-			res[ind2] = a[ind2];
-			res[ind3] = a[ind3];
-			res[ind4] = -a[ind4];
-
-		}
+	int mask = 0;
+#pragma omp parallel for private(mask)
+	for (mask = 0; mask < finish; mask++) {
+		int ind1 = (mask & ((1 << x) - 1)) |
+			((mask & (((1 << (y - 1)) - 1) ^ ((1 << x) - 1))) << 1) |
+			((mask & (((1 << (step - 2)) - 1) ^ ((1 << (y - 1)) - 1))) << 2);
+		int ind2 = ind1 | (1 << y);
+		int ind3 = ind1 | (1 << x);
+		int ind4 = ind3 | (1 << y);
+		res[ind1] = a[ind1];
+		res[ind2] = a[ind2];
+		res[ind3] = a[ind3];
+		res[ind4] = -a[ind4];
 	}
 	return res;
 }
 
 vector<cd> Quantum::CNOT(const vector<cd>& a, int x, int y) {
-	int gg = (int)a.size();
-	int step = 0;
-	while (gg != 1) {
-		step++;
-		gg >>= 1;
-	}
-	/*x = step - x;
-	y = step - y;*/
+	int n = (int)a.size();
+	int step = log2(n);
 	x--;
 	y--;
 	int finish = 1 << (step - 2);
 	vector<cd> res(a);
-#pragma omp parallel
-	{
-#pragma omp for schedule(static)
-		for (int mask = 0; mask < finish; mask++) {
-			int ind1 = 0;
-			for (int i = 0; i < x; i++) {
-				ind1 |= mask & (1 << i);
-			}
-			for (int i = x + 1; i < y; i++) {
-				bool gg = mask & (1 << (i - 1));
-				ind1 |= (gg << i);
-			}
-			for (int i = y + 1; i < step; i++) {
-				bool gg = mask & (1 << (i - 2));
-				ind1 |= (gg << i);
-			}
-			int ind2 = ind1;
-			ind2 |= (1 << y);
-			int ind3 = ind1;
-			ind3 |= (1 << x);
-			int ind4 = ind3;
-			ind4 |= (1 << y);
-			res[ind1] = a[ind1];
-			res[ind2] = a[ind2];
-			res[ind4] = a[ind3];
-			res[ind3] = a[ind4];
-		}
+	int mask = 0;
+#pragma omp parallel for private(mask)
+	for (mask = 0; mask < finish; mask++) {
+		int ind1 = (mask & ((1 << x) - 1)) |
+			((mask & (((1 << (y - 1)) - 1) ^ ((1 << x) - 1))) << 1) |
+			((mask & (((1 << (step - 2)) - 1) ^ ((1 << (y - 1)) - 1))) << 2);
+		int ind2 = ind1 | (1 << y);
+		int ind3 = ind1 | (1 << x);
+		int ind4 = ind3 | (1 << y);
+		res[ind1] = a[ind1];
+		res[ind2] = a[ind2];
+		res[ind4] = a[ind3];
+		res[ind3] = a[ind4];
 	}
 	return res;
 }
 
+const double PI2 = 2 * acos(-1.);
+
 vector<cd> Quantum::PhaseShift(const vector<cd>& a, int ind, int m) {
-	auto ans = a;
-	double alp = (double)2 * acos(-1.) / (1 << m);
+	double alp = PI2 / (1 << m);
+	alp += noize;
 	cd mult(cos(alp), sin(alp));
-	int gg = (int)a.size();
-	int step = 0;
-	while (gg != 1) {
-		step++;
-		gg >>= 1;
-	}
+	int n = (int)a.size();
+	int step = log2(n);
 	int index = ind - 1;
 	int finish = 1 << (step - 1);
 	vector<cd> matrix(a);
-
-#pragma omp parallel
-	{
-#pragma omp for schedule(static)
-		for (int mask = 0; mask < finish; mask++) {
-			int ind1 = 0, ind2 = 0;
-			for (int i = 0; i < index; i++) {
-				ind1 |= mask & (1 << i);
-			}
-			for (int i = index + 1; i < step; i++) {
-				bool gg = mask & (1 << (i - 1));
-				ind1 |= (gg << i);
-			}
-			ind2 = ind1;
-			ind2 |= (1 << index);
-			matrix[ind1] = a[ind1];
-			matrix[ind2] = a[ind2] * mult;
-		}
+	int mask = 0;
+#pragma omp parallel for private(mask)
+	for (mask = 0; mask < finish; mask++) {
+		int ind1 = (mask & ((1 << index) - 1)) |
+			((mask & (((1 << (step - 1)) - 1) ^ ((1 << index) - 1))) << 1);
+		int ind2 = ind1 | (1 << index);
+		matrix[ind1] = a[ind1];
+		matrix[ind2] = a[ind2] * mult;
 	}
 	return matrix;
 }
 
 vector<cd> Quantum::ReversePhaseShift(const vector<cd>& a, int ind, int m) {
-	auto ans = a;
-	double alp = -(double)2 * acos(-1.) / (1 << m);
+	double alp = -PI2 / (1 << m);
+	alp += noize;
 	cd mult(cos(alp), sin(alp));
-	int gg = (int)a.size();
-	int step = 0;
-	while (gg != 1) {
-		step++;
-		gg >>= 1;
-	}
+	int n = (int)a.size();
+	int step = log2(n);
 	int index = ind - 1;
 	int finish = 1 << (step - 1);
 	vector<cd> matrix(a);
-
-#pragma omp parallel
-	{
-#pragma omp for schedule(static)
-		for (int mask = 0; mask < finish; mask++) {
-			int ind1 = 0, ind2 = 0;
-			for (int i = 0; i < index; i++) {
-				ind1 |= mask & (1 << i);
-			}
-			for (int i = index + 1; i < step; i++) {
-				bool gg = mask & (1 << (i - 1));
-				ind1 |= (gg << i);
-			}
-			ind2 = ind1;
-			ind2 |= (1 << index);
-			matrix[ind1] = a[ind1];
-			matrix[ind2] = a[ind2] * mult;
-		}
+	int mask = 0;
+#pragma omp parallel for private(mask)
+	for (mask = 0; mask < finish; mask++) {
+		int ind1 = (mask & ((1 << index) - 1)) |
+			((mask & (((1 << (step - 1)) - 1) ^ ((1 << index) - 1))) << 1);
+		int ind2 = ind1 | (1 << index);
+		matrix[ind1] = a[ind1];
+		matrix[ind2] = a[ind2] * mult;
 	}
 	return matrix;
 }
 
 vector<cd> Quantum::Controlled_Rm(const vector<cd>& a, int x, int y, int m) {
-	double alp = (double)2 * acos(-1.) / (1 << m);
+	double alp = PI2 / (1 << m);
+	alp += noize;
 	cd mult(cos(alp), sin(alp));
-	int gg = (int)a.size();
-	int step = 0;
-	while (gg != 1) {
-		step++;
-		gg >>= 1;
-	}
+	int n = (int)a.size();
+	int step = log2(n);
 	x--;
 	y--;
 	int finish = 1 << (step - 2);
 	vector<cd> res(a.size());
-#pragma omp parallel
-	{
-#pragma omp for
-		for (int mask = 0; mask < finish; mask++) {
-			int ind1 = 0;
-			for (int i = 0; i < x; i++) {
-				ind1 |= mask & (1 << i);
-			}
-			for (int i = x + 1; i < y; i++) {
-				bool gg = mask & (1 << (i - 1));
-				ind1 |= (gg << i);
-			}
-			for (int i = y + 1; i < step; i++) {
-				bool gg = mask & (1 << (i - 2));
-				ind1 |= (gg << i);
-			}
-			int ind2 = ind1;
-			ind2 |= (1 << y);
-			int ind3 = ind1;
-			ind3 |= (1 << x);
-			int ind4 = ind3;
-			ind4 |= (1 << y);
-			res[ind1] = a[ind1];
-			res[ind2] = a[ind2];
-			res[ind3] = a[ind3];
-			res[ind4] = a[ind4] * mult;
-		}
+	int mask = 0;
+#pragma omp parallel for private(mask)
+	for (mask = 0; mask < finish; mask++) {
+		int ind1 = (mask & ((1 << x) - 1)) |
+			((mask & (((1 << (y - 1)) - 1) ^ ((1 << x) - 1))) << 1) |
+			((mask & (((1 << (step - 2)) - 1) ^ ((1 << (y - 1)) - 1))) << 2);
+		int ind2 = ind1 | (1 << y);
+		int ind3 = ind1 | (1 << x);
+		int ind4 = ind3 | (1 << y);
+		res[ind1] = a[ind1];
+		res[ind2] = a[ind2];
+		res[ind3] = a[ind3];
+		res[ind4] = a[ind4] * mult;
 	}
 	return res;
 }
 
 vector<cd> Quantum::ReverseControlled_Rm(const vector<cd>& a, int x, int y, int m) {
-	double alp = -(double)2 * acos(-1.) / (1 << m);
+	double alp = -PI2 / (1 << m);
+	alp += noize;
 	cd mult(cos(alp), sin(alp));
-	int gg = (int)a.size();
-	int step = 0;
-	while (gg != 1) {
-		step++;
-		gg >>= 1;
-	}
+	int n = (int)a.size();
+	int step = log2(n);
 	x--;
 	y--;
 	int finish = 1 << (step - 2);
 	vector<cd> res(a.size());
-#pragma omp parallel
-	{
-#pragma omp for
-		for (int mask = 0; mask < finish; mask++) {
-			int ind1 = 0;
-			for (int i = 0; i < x; i++) {
-				ind1 |= mask & (1 << i);
-			}
-			for (int i = x + 1; i < y; i++) {
-				bool gg = mask & (1 << (i - 1));
-				ind1 |= (gg << i);
-			}
-			for (int i = y + 1; i < step; i++) {
-				bool gg = mask & (1 << (i - 2));
-				ind1 |= (gg << i);
-			}
-			int ind2 = ind1;
-			ind2 |= (1 << y);
-			int ind3 = ind1;
-			ind3 |= (1 << x);
-			int ind4 = ind3;
-			ind4 |= (1 << y);
-			res[ind1] = a[ind1];
-			res[ind2] = a[ind2];
-			res[ind3] = a[ind3];
-			res[ind4] = a[ind4] * mult;
-		}
+	int mask = 0;
+#pragma omp parallel for private(mask)
+	for (mask = 0; mask < finish; mask++) {
+		int ind1 = (mask & ((1 << x) - 1)) |
+			((mask & (((1 << (y - 1)) - 1) ^ ((1 << x) - 1))) << 1) |
+			((mask & (((1 << (step - 2)) - 1) ^ ((1 << (y - 1)) - 1))) << 2);
+		int ind2 = ind1 | (1 << y);
+		int ind3 = ind1 | (1 << x);
+		int ind4 = ind3 | (1 << y);
+		res[ind1] = a[ind1];
+		res[ind2] = a[ind2];
+		res[ind3] = a[ind3];
+		res[ind4] = a[ind4] * mult;
 	}
 	return res;
 }
 
 vector<cd> Quantum::FADD(vector<cd> b, int a) {
-	int gg = (int)b.size();
-	int step = 0;
-	while (gg != 1) {
-		step++;
-		gg >>= 1;
-	}
-	string to_2 = perevod(a, 2);
-	while (to_2.size() < step) to_2 = '0' + to_2;
-
+	int n = (int)b.size();
+	int step = log2(n);
 	for (int i = 0; i < step; i++) {
 		for (int j = 1; j <= step - i; j++) {
-			if (to_2[step - i - j] == '0') continue;
-			b = PhaseShift(b, i + 1, j);
+			if (a & (1 << (i + j - 1))) b = PhaseShift(b, i + 1, j);
 		}
 	}
 	return b;
 }
 
 vector<cd> Quantum::ReverseFADD(vector<cd> b, int a) {
-	int gg = (int)b.size();
-	int step = 0;
-	while (gg != 1) {
-		step++;
-		gg >>= 1;
-	}
-	string to_2 = perevod(a, 2);
-	while (to_2.size() < step) to_2 = '0' + to_2;
-
+	int n = (int)b.size();
+	int step = log2(n);
 	for (int i = 0; i < step; i++) {
 		for (int j = 1; j <= step - i; j++) {
-			if (to_2[step - i - j] == '0') continue;
-			b = ReversePhaseShift(b, i + 1, j);
+			if (a & (1 << (i + j - 1))) b = ReversePhaseShift(b, i + 1, j);
 		}
 	}
 	return b;
 }
 
 vector<cd> Quantum::Fredkin(const vector<cd>& a, int x, int y, int z) {
-	int gg = (int)a.size();
-	int step = 0;
-	while (gg != 1) {
-		step++;
-		gg >>= 1;
-	}
-	/*x = step - x;
-	y = step - y;*/
+	int n = (int)a.size();
+	int step = log2(n);
 	x--;
 	y--;
 	z--;
 	int finish = 1 << (step - 3);
 	vector<cd> res(a);
-	#pragma omp parallel
-	{
-		#pragma omp for schedule(static)
-		for (int mask = 0; mask < finish; mask++) {
-			int ind1 = 0;
-			for (int i = 0; i < x; i++) {
-				ind1 |= mask & (1 << i);
-			}
-			for (int i = x + 1; i < y; i++) {
-				bool gg = mask & (1 << (i - 1));
-				ind1 |= (gg << i);
-			}
-			for (int i = y + 1; i < z; i++) {
-				bool gg = mask & (1 << (i - 2));
-				ind1 |= (gg << i);
-			}
-			for (int i = z + 1; i < step; i++) {
-				bool gg = mask & (1 << (i - 3));
-				ind1 |= (gg << i);
-			}
-			int ind2(ind1), ind3(ind1), ind4(ind1), ind5(ind1), ind6(ind1), ind7(ind1), ind8(ind1), ind9(ind1);
-			ind2 |= (1 << z);
-			ind3 |= (1 << y);
-			ind4 |= (1 << z); ind4 |= (1 << y);
-			ind5 |= (1 << x);
-			ind6 |= (1 << x);                 ind6 |= (1 << z);
-			ind7 |= (1 << x); ind7 |= (1 << y);
-			ind8 |= (1 << x); ind8 |= (1 << y); ind8 |= (1 << z);
-			res[ind1] = a[ind1];
-			res[ind2] = a[ind2];
-			res[ind3] = a[ind3];
-			res[ind4] = a[ind4];
-			res[ind5] = a[ind5];
-			res[ind6] = a[ind7];
-			res[ind7] = a[ind6];
-			res[ind8] = a[ind8];
-		}
+	int mask = 0;
+#pragma omp parallel for private(mask)
+	for (int mask = 0; mask < finish; mask++) {
+		int ind1 = (mask & ((1 << x) - 1)) |
+			((mask & (((1 << (y - 1)) - 1) ^ ((1 << x) - 1))) << 1) |
+			((mask & (((1 << (z - 2)) - 1) ^ ((1 << (y - 1)) - 1))) << 2) |
+			((mask & (((1 << (step - 3)) - 1) ^ ((1 << (z - 2)) - 1))) << 3);
+		int ind2(ind1), ind3(ind1), ind4(ind1), ind5(ind1), ind6(ind1), ind7(ind1), ind8(ind1), ind9(ind1);
+		ind2 |= (1 << z);
+		ind3 |= (1 << y);
+		ind4 |= (1 << z); ind4 |= (1 << y);
+		ind5 |= (1 << x);
+		ind6 |= (1 << x); ind6 |= (1 << z);
+		ind7 |= (1 << x); ind7 |= (1 << y);
+		ind8 |= (1 << x); ind8 |= (1 << y); ind8 |= (1 << z);
+		res[ind1] = a[ind1];
+		res[ind2] = a[ind2];
+		res[ind3] = a[ind3];
+		res[ind4] = a[ind4];
+		res[ind5] = a[ind5];
+		res[ind6] = a[ind7];
+		res[ind7] = a[ind6];
+		res[ind8] = a[ind8];
 	}
 	return res;
 }
 
-void Quantum::FADD_modN(cd & _1, cd & _2, vector<cd>& b, cd & _4, int a, int N, int cnt_qub) {
+void Quantum::FADD_modN(cd& _1, cd& _2, vector<cd>& b, cd& _4, int a, int N, int cnt_qub) {
 	if (norm(_1) > 0 && norm(_2) > 0) {
 		b = FADD(b, a);
 	}
@@ -459,11 +299,7 @@ void Quantum::FADD_modN(cd & _1, cd & _2, vector<cd>& b, cd & _4, int a, int N, 
 			break;
 		}
 	}
-	string tmp = perevod(ind, 2);
-	if (tmp.back() == '0') {}
-	else {
-		_4 = { 1, 0 };
-	}
+	if (ind & (1 << 0)) _4 = { 1, 0 };
 
 	b = QFFT(b, cnt_qub);
 
@@ -481,21 +317,15 @@ void Quantum::FADD_modN(cd & _1, cd & _2, vector<cd>& b, cd & _4, int a, int N, 
 			break;
 		}
 	}
-	tmp = perevod(ind, 2);
-	if (tmp.back() == '0')
-		tmp.back() = '1';
-	else tmp.back() = '0';
-
-	if (tmp.back() == '1') {
-		_4 = { 0, 0 };
-	}
+	if (!(ind & (1 << 0))) _4 = {0, 0};
+	
 	b = QFFT(b, cnt_qub);
 	if (norm(_1) > 0 && norm(_2) > 0) {
 		b = FADD(b, a);
 	}
 }
 
-void Quantum::ReverseFADD_modN(cd & _1, cd & _2, vector<cd>& b, cd & _4, int a, int N, int cnt_qub) {
+void Quantum::ReverseFADD_modN(cd& _1, cd& _2, vector<cd>& b, cd& _4, int a, int N, int cnt_qub) {
 	if (norm(_1) > 0 && norm(_2) > 0) {
 		b = ReverseFADD(b, a);
 	}
@@ -509,12 +339,8 @@ void Quantum::ReverseFADD_modN(cd & _1, cd & _2, vector<cd>& b, cd & _4, int a, 
 			break;
 		}
 	}
-	//cout << "! " << _4 << '\n';
-	if (ind == -1) throw 1;
-	string tmp = perevod(ind, 2);
-	if (tmp.back() == '1') _4 = { 1, 0 };
+	if (ind & (1 << 0)) _4 = { 1, 0 };
 
-	//cout << "! " << _4 << '\n';
 	b = QFFT(b, cnt_qub);
 
 	if (norm(_4) > 0) {
@@ -531,77 +357,69 @@ void Quantum::ReverseFADD_modN(cd & _1, cd & _2, vector<cd>& b, cd & _4, int a, 
 			break;
 		}
 	}
-	if (ind == -1) throw 1;
-	//cout << "! " << _4 << '\n';
-	tmp = perevod(ind, 2);
-	if (tmp.back() == '0') tmp.back() = '1';
-	else tmp.back() = '0';
-	if (tmp.back() == '1') {
-		_4 = { 0, 0 };
-	}
-	//cout << "! " << _4 << '\n';
+	if (!(ind & (1 << 0))) _4 = { 0, 0 };
+	
 	b = QFFT(b, cnt_qub);
 	if (norm(_1) > 0 && norm(_2) > 0) {
 		b = ReverseFADD(b, a);
 	}
 }
 
-void Quantum::CMULT_modN(cd & _1, vector<cd>& x, vector<cd>& b, cd & _4, int a, int N, int cnt_qub) {
+void Quantum::CMULT_modN(cd& _1, vector<cd>& x, vector<cd>& b, cd& _4, int a, int N, int cnt_qub) {
 	b = QFFT(b, cnt_qub);
 	int step2 = 1;
-	cd qwe = { 1, 0 };
-	for (int i = 0; i < log2(x.size()); i++) {
-		int gg = (step2 * a) % N;
+	int n = log2(x.size());
+	cd _2 = { 1, 0 };
+	for (int i = 0; i < n; i++) {
 		bool ok = 0;
-		for (int j = 0; j < x.size(); j++) {
-			string tmp = perevod(j, 2);
-			while (tmp.size() < log2(x.size())) tmp = '0' + tmp;
-			if (tmp[i] == '1' && norm(x[j]) > 0) {
+		for (int j = 0; j < (int)x.size(); j++) {
+			if ((j & (1 << (n - i - 1))) && norm(x[j]) > 0) {
 				ok = 1;
 				break;
 			}
 		}
-		if (ok) FADD_modN(_1, qwe, b, _4, reverseNumber(gg, cnt_qub), reverseNumber(N, cnt_qub), cnt_qub);
-		step2 *= 2;
-		step2 %= N;
+		if (ok) {
+			int gg = ((long long)step2 * a) % N;
+			FADD_modN(_1, _2, b, _4, reverseNumber(gg, cnt_qub), reverseNumber(N, cnt_qub), cnt_qub);
+		}
+		(step2 <<= 1) %= N;
 	}
 	b = ReverseQFFT(b, cnt_qub);
 }
 
-void Quantum::ReverseCMULT_modN(cd & _1, vector<cd>& x, vector<cd>& b, cd & _4, int a, int N, int cnt_qub) {
+void Quantum::ReverseCMULT_modN(cd& _1, vector<cd>& x, vector<cd>& b, cd& _4, int a, int N, int cnt_qub) {
 	b = QFFT(b, cnt_qub);
 	int step2 = 1;
-	cd qwe = { 1, 0 };
-	for (int i = 0; i < log2(x.size()); i++) {
-		int gg = (step2 * a) % N;
+	int n = log2(x.size());
+	cd _2 = { 1, 0 };
+	for (int i = 0; i < n; i++) {
 		bool ok = 0;
-		for (int j = 0; j < x.size(); j++) {
-			string tmp = perevod(j, 2);
-			while (tmp.size() < log2(x.size())) tmp = '0' + tmp;
-			if (tmp[i] == '1' && norm(x[j]) > 0) {
+		for (int j = 0; j < (int)x.size(); j++) {
+			if ((j & (1 << (n - i - 1))) && norm(x[j]) > 0) {
 				ok = 1;
 				break;
 			}
 		}
-		if (ok) ReverseFADD_modN(_1, qwe, b, _4, reverseNumber(gg, cnt_qub), reverseNumber(N, cnt_qub), cnt_qub);
-		step2 *= 2;
-		step2 %= N;
+		if (ok) {
+			int gg = ((long long)step2 * a) % N;
+			ReverseFADD_modN(_1, _2, b, _4, reverseNumber(gg, cnt_qub), reverseNumber(N, cnt_qub), cnt_qub);
+		}
+		(step2 <<= 1) %= N;
 	}
 	b = ReverseQFFT(b, cnt_qub);
 }
 
-void Quantum::UnitCMULT_modN(cd & _1, vector<cd>& x, vector<cd>& b, cd & _4, int a, int N, int cnt_qub) {
+void Quantum::UnitCMULT_modN(cd& _1, vector<cd>& x, vector<cd>& b, cd& _4, int a, int N, int cnt_qub) {
 	if (norm(_1) > 0) {
 		CMULT_modN(_1, x, b, _4, a, N, cnt_qub);
 	}
 
-	swap(x, b);// =)
-
+	swap(x, b); // =)
 
 	int ans, tmp;
 	int gcd = gcdex(a, N, ans, tmp);
 
-	try {
+	/*try {
 		if (gcd != 1) throw BadGCD();
 		if (ans < 0) ans += N;
 		if ((ans * a) % N != 1) throw BadAnswerReverse();
@@ -613,7 +431,7 @@ void Quantum::UnitCMULT_modN(cd & _1, vector<cd>& x, vector<cd>& b, cd & _4, int
 	catch (Quantum::BadAnswerReverse) {
 		cout << "BadAnswerReverse: UnitCMULT_modN\n";
 		return;
-	}
+	}*/
 
 	if (norm(_1) > 0) ReverseCMULT_modN(_1, x, b, _4, ans, N, cnt_qub);
 }
@@ -621,30 +439,31 @@ void Quantum::UnitCMULT_modN(cd & _1, vector<cd>& x, vector<cd>& b, cd & _4, int
 int Quantum::Shor() {
 	int cnt_qub = (int)ceil(log2(N)) + 1;
 	int sz = 1 << (2 * cnt_qub - 2);
-	vector<cd> kek(1 << (3 * cnt_qub - 3), 0);
+	cd empty = { 0, 0 };
+	cd _1 = { 1, 0 };
+	int reversed = reverseNumber(1, cnt_qub + 1) << 1;
+	vector<cd> mas(1 << (3 * cnt_qub - 3), 0);
+	int logFirstRegisterSize = 2 * cnt_qub - 2;
+	firstRegister = QFFT(firstRegister, logFirstRegisterSize);
 
-	firstRegister = QFFT(firstRegister, log2(firstRegister.size()));
+	for (int j = 0; j < sz; j++) {
+		fill(secondRegister.begin(), secondRegister.end(), empty);
+		secondRegister[reversed] = _1;
 
+		fill(thirdRegister.begin(), thirdRegister.end(), empty);
+		thirdRegister[0] = _1;
 
-	for (int j = 0; j < firstRegister.size(); j++) {
-		string tmp = perevod(j, 2);
-		secondRegister.assign(1 << (cnt_qub + 2), { 0, 0 });
-		secondRegister[reverseNumber(1, cnt_qub + 1) << 1] = { 1, 0 };
-		thirdRegister.assign(1 << (cnt_qub + 2), { 0, 0 });
-		thirdRegister[0] = { 1, 0 };
-		while (tmp.size() < log2(firstRegister.size())) tmp = '0' + tmp;
 		int gg = 1;
 		long long step2 = 1;
-		for (int k = 0; k < log2(firstRegister.size()); k++) {
-			gg = bin_pow(a, step2, N);
-			step2 *= 2;
-			if (tmp[k] == '1') {
-				cd qwe = { 1, 0 };
-				UnitCMULT_modN(qwe, secondRegister, thirdRegister, fourthRegister, gg, N, cnt_qub + 2);
-				thirdRegister.assign(1 << (cnt_qub + 2), { 0, 0 });
-				thirdRegister[0] = { 1, 0 };
-				#pragma omp parallel for
-				for (int i = 0; i < secondRegister.size(); i++) {
+		for (int k = 0; k < logFirstRegisterSize; k++) {
+			step2 <<= 1;
+			if (j & (1 << (logFirstRegisterSize - k - 1))) {
+				gg = bin_pow(a, step2, N);
+				UnitCMULT_modN(_1, secondRegister, thirdRegister, fourthRegister, gg, N, cnt_qub + 2);
+				fill(thirdRegister.begin(), thirdRegister.end(), empty);
+				thirdRegister[0] = _1;
+#pragma omp parallel for
+				for (int i = 0; i < (int)secondRegister.size(); i++) {
 					double q = secondRegister[i].real(), w = secondRegister[i].imag();
 					if (fabs(secondRegister[i].real()) < eps) q = 0;
 					if (fabs(secondRegister[i].imag()) < eps) w = 0;
@@ -653,25 +472,28 @@ int Quantum::Shor() {
 			}
 		}
 
-		int ans = -1;
+		int ans = 0;
 		for (int k = 0; k < secondRegister.size(); k++) if (fabs(norm(secondRegister[k]) - 1) < eps) {
 			ans = k;
 			break;
 		}
 		//ans = reverseNumber(ans, cnt_qub + 2);
 		ans >>= 3;
-		kek[ans * (1 << (2 * cnt_qub - 2)) + j] = firstRegister[j];
+		mas[ans * sz + j] = firstRegister[j];
 	}
-	for (int i = 0; i < cnt_qub - 1; i++) kek = measure_cubit(kek, log2(kek.size()));
+	for (int i = 0; i < cnt_qub - 1; i++) mas = measure_cubit(mas, log2(mas.size()));
 
-	kek = QFFT(kek, log2(kek.size()));
-	int ans = 0;
+	mas = QFFT(mas, log2(mas.size()));
+	int ans = 1;
 
-	for (int i = 0; i < kek.size(); i++) {
-		if (norm(kek[i]) > eps) ans = __gcd(ans, i);
+	for (int i = 0; i < mas.size(); i++) {
+		if (norm(mas[i]) > eps) {
+			ans = gcd(ans, i);
+			cout << i << ' ';
+		}
 	}
-
-	return kek.size() / ans;
+	cout << '\n' << mas.size() << ' ' << ans << '\n';
+	return (int)mas.size() / ans;
 }
 
 vector<cd> Quantum::DenseCoding(const vector<cd>& a, int cnt_qubits) {
@@ -762,7 +584,7 @@ int Quantum::calc_whole_cubit(const vector<cd>& a) {
 	return index;
 }
 
-void Quantum::test_for_whole_calc(const int & tests, const vector<complex<double>>& a) {
+void Quantum::test_for_whole_calc(const int& tests, const vector<complex<double>>& a) {
 	map<int, int> mapik;
 
 	for (int i = 0; i < tests; i++) {
@@ -854,7 +676,7 @@ vector<cd> Quantum::measure_cubit(const vector<cd>& a, int index) {
 	return ans;
 }
 
-void Quantum::test_for_one_calc(const int & tests, const vector<cd>& a, int index) {
+void Quantum::test_for_one_calc(const int& tests, const vector<cd>& a, int index) {
 	int gg = (int)a.size();
 	int step = 0;
 	while (gg != 1) {
@@ -883,4 +705,3 @@ void Quantum::test_for_one_calc(const int & tests, const vector<cd>& a, int inde
 
 	}
 }
-

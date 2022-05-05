@@ -1,0 +1,5 @@
+.vs/
+*.txt
+**/x64/
+*.log
+**/VTune Profiler Results/

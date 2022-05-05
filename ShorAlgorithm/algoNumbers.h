@@ -7,7 +7,7 @@ int bin_mul(long long a, long long b, long long mod);
 int bin_pow(long long a, long long b, long long mod);
 int generate_random_number(int l, int r);
 
-int __gcd(int a, int b);
+int gcd(int a, int b);
 int gcdex(int a, int b, int &x, int &y);
 
 bool is_prime_sqrt_check(int x);

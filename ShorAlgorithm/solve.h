@@ -1,3 +1,3 @@
 #pragma once
 extern const double eps;
-void solve(int n);
+void solve(int n, double noize);

@@ -9,9 +9,10 @@
 #include<iomanip>
 #include<cassert>
 #include<omp.h>
-#include"algoNumbers.h"
 #include<complex>
 #include<string>
+#include <algorithm>
+#include"algoNumbers.h"
 
 #define deb(a) cout << #a << " = " << a << '\n';
 using namespace std;
@@ -31,13 +32,14 @@ private:
 	vector<cd> thirdRegister;
 	cd fourthRegister;
 	int a, N;
+	double noize;
 	int reverseNumber(int x, int len);
 	string perevod(int x, int k);
 	class BadGCD {};
 	class BadAnswerReverse {};
 	class BadAnswerShor {};
 public:
-	Quantum(int a, int N);
+	Quantum(int a, int N, double noize);
 	vector<cd> QFFT(const vector<cd> & input, int cnt_qubits);
 	vector<cd> ReverseQFFT(const vector<cd> & input, int cnt_qubits);
 

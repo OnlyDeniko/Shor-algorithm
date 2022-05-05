@@ -27,22 +27,27 @@ int bin_pow(long long a, long long b, long long mod) {
 	return res;
 }
 
-int __gcd(int a, int b) {
-	return (a ? __gcd(b % a, a) : b);
+int gcd(int a, int b) {
+	while (b) {
+		a %= b;
+		std::swap(a, b);
+	}
+	return a;
 }
 
-int gcdex(int a, int b, int & x, int & y) {
-	if (!a) {
-		x = 0;
-		y = 1;
-		return b;
+int gcdex(int a, int b, int& x, int& y) {
+	int c, q, xp, yp;
+	x = yp = 1, y = xp = 0;
+	while (b != 0) {
+		q = a / b;
+		c = a - q * b;
+		a = b, b = c;
+		c = x - q * xp;
+		x = xp, xp = c;
+		c = y - q * yp;
+		y = yp, yp = c;
 	}
-	int x1, y1;
-	int gcd = gcdex(b % a, a, x1, y1);
-	x = y1 - (b / a) * x1;
-	y = x1;
-	//cout << a << ' ' << b << ' ' << x << ' ' << y << '\n';
-	return gcd;
+	return a;
 }
 
 bool is_prime_sqrt_check(int x) {
